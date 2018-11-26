@@ -8,6 +8,14 @@ function pluck(arr) {
     return arr[randIndex];
 }
 
+function pluralize(count, singular, plural) {
+    if (count === 1) {
+        return `${count} ${singular}`;
+    } else {
+        return `${count} ${plural}`;
+    }
+}
+
 const states = {
     TOO_MUCH_CONFIRMATION: "TOO_MUCH_CONFIRMATION",
     WAKING: "WAKING"
@@ -249,7 +257,7 @@ const WakingForGoodHandler = {
         const minutes = Math.round(60 * (diff - hours));
         const timesRisen = data.timesRisen;
 
-        let speech = `You slept ${hours} hours and ${minutes} minutes.`;
+        let speech = `You slept ${pluralize(hours, "hour", "hours")} and ${pluralize(minutes, "minute", "minutes")}.`;
 
         if (timesRisen > 1) {
             speech += ` You woke up ${timesRisen} times.`;
