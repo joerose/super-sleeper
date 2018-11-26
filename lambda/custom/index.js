@@ -8,7 +8,7 @@ function pluck(arr) {
     return arr[randIndex];
 }
 
-const states {
+const states = {
     TOO_MUCH_CONFIRMATION: "TOO_MUCH_CONFIRMATION"
 };
 
@@ -65,22 +65,6 @@ const WellRestedIntentHandler = {
 
             const attributes = handlerInput.attributesManager.getSessionAttributes();
 
-            if (numOfHours > 12) {
-                attributes.state = states.TOO_MUCH_CONFIRMATION;
-
-                handlerInput.attributesManager.setSessionAttribute(attributes);
-
-                const speech = "I want to make sure I got that." +
-                                "Do you really plan to sleep " +
-                                numOfHours + " hours?";
-                const reprompt = numOfHours + " hours? Did I hear right?";
-
-                return handlerInput.responseBuilder
-                        .speak(speech)
-                        .reprompt(reprompt)
-                        .getResponse();
-            }
-
             const resolutionValues = slots.SleepQuality &&
                 slots.SleepQuality.resolutions &&
                 slots.SleepQuality.resolutions.resolutionsPerAuthority[0] &&
@@ -101,7 +85,19 @@ const WellRestedIntentHandler = {
             }
 
             if (adjustedHours > 12) {
-                speech += pluck(WellRestedPhrases.tooMuch);
+                attributes.state = states.TOO_MUCH_CONFIRMATION;
+
+                handlerInput.attributesManager.setSessionAttributes(attributes);
+
+                const speech = "I want to make sure I got that. " +
+                                "Do you really plan to sleep " +
+                                numOfHours + " hours?";
+                const reprompt = numOfHours + " hours? Did I hear right?";
+
+                return handlerInput.responseBuilder
+                        .speak(speech)
+                        .reprompt(reprompt)
+                        .getResponse();
             } else if (adjustedHours > 8) {
                 speech += pluck(WellRestedPhrases.justRight);
             } else if (adjustedHours > 6) {
@@ -129,6 +125,57 @@ const WellRestedIntentHandler = {
                     .getResponse();
         }
     }
+};
+
+const TooMuchYesIntentHandler = {
+
+    canHandle(handlerInput) {
+        const intentName = "AMAZON.YesIntent";
+        const attributes = handlerInput.attributesManager.getSessionAttributes();
+
+        return handlerInput.requestEnvelope.request.type === "IntentRequest" &&
+                handlerInput.requestEnvelope.request.intent.name === intentName &&
+                attributes.state === states.TOO_MUCH_CONFIRMATION;
+    },
+
+    handle(handlerInput) {
+        const speech = "Okay, " + pluck(WellRestedPhrases.tooMuch);
+
+        const attributes = handlerInput.attributesManager.getSessionAttributes();
+        delete attributes.state;
+        handlerInput.attributesManager.setSessionAttributes(attributes);
+
+        return handlerInput.responseBuilder
+                .speak(speech)
+                .getResponse();
+    }
+};
+
+const TooMuchNoIntentHandler = {
+
+    canHandle(handlerInput) {
+        const intentName = "AMAZON.NoIntent";
+        const attributes = handlerInput.attributesManager.getSessionAttributes();
+
+        return handlerInput.requestEnvelope.request.type === "IntentRequest" &&
+                handlerInput.requestEnvelope.request.intent.name === intentName &&
+                attributes.state === states.TOO_MUCH_CONFIRMATION;
+    },
+
+    handle(handlerInput) {
+        const speech = "Oh, sorry. How many hours of sleep did you want?";
+        const reprompt = "Once more, how many hours?";
+
+        const attributes = handlerInput.attributesManager.getSessionAttributes();
+        delete attributes.state;
+        handlerInput.attributesManager.setSessionAttributes(attributes);
+
+        return handlerInput.responseBuilder
+                .speak(speech)
+                .reprompt(reprompt)
+                .getResponse();
+    }
+
 };
 
 const StopOrCancelIntentHandler = {
@@ -172,12 +219,35 @@ const LaunchRequestHandler = {
 
 };
 
+const Unhandled = {
+
+    canHandle(handlerInput) {
+        return true;
+    },
+
+    handle(handlerInput) {
+        const speech = "Hey, sorry, I'm not sure how to take care of that. " +
+                        "Try once more?";
+        const reprompt = "How about this. Tell me instead how many hours " +
+                         "you want to sleep.";
+
+         return handlerInput.responseBuilder
+                .speak(speech)
+                .reprompt(reprompt)
+                .getResponse();
+    }
+
+};
+
 const skillBuilder = Alexa.SkillBuilders.standard();
 
 exports.handler = skillBuilder
                     .addRequestHandlers(
+                        TooMuchYesIntentHandler,
+                        TooMuchNoIntentHandler,
                         WellRestedIntentHandler,
                         StopOrCancelIntentHandler,
-                        LaunchRequestHandler
+                        LaunchRequestHandler,
+                        Unhandled
                     )
                     .lambda();
