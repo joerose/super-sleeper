@@ -44,12 +44,24 @@ const WellRestedIntentHandler = {
                handlerInput.requestEnvelope.request.intent.name === intentName;
     },
 
-    handle(handlerInput) {
+    async handle(handlerInput) {
         const slots = handlerInput
                         .requestEnvelope
                         .request
                         .intent
                         .slots;
+
+        const data = await handlerInput.attributesManager.getPersistentAttributes(); //retrieves data from DynamoDB
+
+        if (data.wellRested) {
+            data.wellRested.invocations = data.wellRested.invocations + 1;
+        } else {
+            data.wellRested = {
+                invocations: 1,
+                sleepQuality: false,
+                seenHint: false
+            };
+        }
 
         const numOfHours = slots.NumberOfHours.value;
         let adjustedHours = parseInt(numOfHours);
@@ -82,6 +94,8 @@ const WellRestedIntentHandler = {
                     adjustedHours -= 1;
                     speech = "You slept poorly last night, and ";
                 }
+
+                data.wellRested.sleepQuality = true;
             }
 
             if (adjustedHours > 12) {
@@ -105,6 +119,9 @@ const WellRestedIntentHandler = {
             } else {
                 speech += pluck(WellRestedPhrases.tooLittle);
             }
+
+            handlerInput.attributesManager.setPersistentAttributes(data);
+            await handlerInput.attributesManager.savePersistentAttributes(data);
 
             return handlerInput
                     .responseBuilder
@@ -250,4 +267,6 @@ exports.handler = skillBuilder
                         LaunchRequestHandler,
                         Unhandled
                     )
+                    .withTableName("super_sleeper") //must grant DynamoDB access to skill's role
+                    .withAutoCreateTable(true)
                     .lambda();
