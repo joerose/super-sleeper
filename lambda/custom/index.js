@@ -8,6 +8,10 @@ function pluck(arr) {
     return arr[randIndex];
 }
 
+const states {
+    TOO_MUCH_CONFIRMATION: "TOO_MUCH_CONFIRMATION"
+};
+
 const WellRestedPhrases = {
 
     tooMuch: [
@@ -58,6 +62,24 @@ const WellRestedIntentHandler = {
         if (Number.isInteger(adjustedHours)) {
 
             let speech = "";
+
+            const attributes = handlerInput.attributesManager.getSessionAttributes();
+
+            if (numOfHours > 12) {
+                attributes.state = states.TOO_MUCH_CONFIRMATION;
+
+                handlerInput.attributesManager.setSessionAttribute(attributes);
+
+                const speech = "I want to make sure I got that." +
+                                "Do you really plan to sleep " +
+                                numOfHours + " hours?";
+                const reprompt = numOfHours + " hours? Did I hear right?";
+
+                return handlerInput.responseBuilder
+                        .speak(speech)
+                        .reprompt(reprompt)
+                        .getResponse();
+            }
 
             const resolutionValues = slots.SleepQuality &&
                 slots.SleepQuality.resolutions &&
