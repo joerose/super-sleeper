@@ -9,7 +9,8 @@ function pluck(arr) {
 }
 
 const states = {
-    TOO_MUCH_CONFIRMATION: "TOO_MUCH_CONFIRMATION"
+    TOO_MUCH_CONFIRMATION: "TOO_MUCH_CONFIRMATION",
+    WAKING: "WAKING"
 };
 
 const WellRestedPhrases = {
@@ -158,6 +159,155 @@ const WellRestedIntentHandler = {
     }
 };
 
+const GoingToBedIntentHandler = {
+
+    canHandle(handlerInput) {
+        const intentName = "GoingToBedIntent";
+
+        return handlerInput.requestEnvelope.request.type === "IntentRequest" &&
+        handlerInput.requestEnvelope.request.intent.name === intentName;
+    },
+
+    async handle(handlerInput) {
+        const data = await handlerInput.attributesManager.getPersistentAttributes();
+
+        data.sleepStart = (new Date()).toString();
+        data.timesRisen = 0;
+
+        handlerInput.attributesManager.setPersistentAttributes(data);
+        await handlerInput.attributesManager.savePersistentAttributes(data);
+
+        const speech = "Sleep well and let me know when you're awake.";
+
+        return handlerInput.responseBuilder
+                .speak(speech)
+                .getResponse();
+    }
+};
+
+const WakingUpIntentHandler = {
+
+    canHandle(handlerInput) {
+        const intentName = "WakingUpIntent";
+
+        return handlerInput.requestEnvelope.request.type === "IntentRequest" &&
+                handlerInput.requestEnvelope.request.intent.name === intentName;
+    },
+
+    async handle(handlerInput) {
+        const data = await handlerInput.attributesManager.getPersistentAttributes();
+        const attributes = handlerInput.attributesManager.getSessionAttributes();
+
+        if (data.sleepStart) {
+            attributes.state = states.WAKING;
+            data.timesRisen = data.timesRisen + 1;
+
+            const speech = "Are you up for good?";
+            const reprompt = "Should I stop the sleep timer?";
+
+            handlerInput.attributesManager.setSessionAttributes(attributes);
+
+            handlerInput.attributesManager.setPersistentAttributes(data);
+            await handlerInput.attributesManager.savePersistentAttributes(data);
+
+            return handlerInput.responseBuilder
+                    .speak(speech)
+                    .reprompt(reprompt)
+                    .getResponse();
+        } else {
+            const speech = "Oops, by my measure you were already awake.";
+
+            return handlerInput.responseBuilder
+                    .speak(speech)
+                    .getResponse();
+        }
+    }
+};
+
+const WakingForGoodHandler = {
+
+    canHandle(handlerInput) {
+        const yesIntentName = "AMAZON.YesIntent";
+        const stopIntentName = "AMAZON.StopIntent";
+        const attributes = handlerInput.attributesManager.getSessionAttributes();
+
+        return handlerInput.requestEnvelope.request.type === "IntentRequest" &&
+            (handlerInput.requestEnvelope.request.intent.name === yesIntentName ||
+             handlerInput.requestEnvelope.request.intent.name === stopIntentName) &&
+             attributes.state === states.WAKING;
+    },
+
+    async handle(handlerInput) {
+        const data = await handlerInput.attributesManager.getPersistentAttributes();
+        const attributes = handlerInput.attributesManager.getSessionAttributes();
+
+        const current = new Date();
+        const past = new Date(data.sleepStart);
+
+        const diff = Math.abs(current.getTime() - past.getTime()) / (1000 * 60 * 60);
+        const hours = Math.floor(diff);
+        const minutes = Math.round(60 * (diff - hours));
+        const timesRisen = data.timesRisen;
+
+        let speech = `You slept ${hours} hours and ${minutes} minutes.`;
+
+        if (timesRisen > 1) {
+            speech += ` You woke up ${timesRisen} times.`;
+        }
+
+        delete attributes.state;
+        handlerInput.attributesManager.setSessionAttributes(attributes);
+
+        return handlerInput.responseBuilder
+                .speak(speech)
+                .getResponse();
+    }
+};
+
+const NotWakingForGoodHandler = {
+
+    canHandle(handlerInput) {
+        const noIntentName = "AMAZON.NoIntent";
+        const cancelIntentName = "AMAZON.CancelIntent";
+        const attributes = handlerInput.attributesManager.getSessionAttributes();
+
+        return handlerInput.requestEnvelope.request.type === "IntentRequest" &&
+            (handlerInput.requestEnvelope.request.intent.name === noIntentName ||
+             handlerInput.requestEnvelope.request.intent.name === cancelIntentName) &&
+             attributes.state === states.WAKING;
+    },
+
+    async handle(handlerInput) {
+
+        let speech = "Alright, sleep well, and we'll talk in the morning.";
+
+        return handlerInput.responseBuilder
+                .speak(speech)
+                .getResponse();
+    }
+
+};
+
+const WakingUnhandled = {
+
+    canHandle(handlerInput) {
+        const attributes = handlerInput.attributesManager.getSessionAttributes();
+
+        return attributes.state === states.WAKING;
+    },
+
+    async handle(handlerInput) {
+
+        const speech = "Would you like to wake up for good?";
+        const reprompt = "Are you waking up for good?";
+
+        return handlerInput.responseBuilder
+                .speak(speech)
+                .reprompt(reprompt)
+                .getResponse();
+    }
+};
+
 const TooMuchYesIntentHandler = {
 
     canHandle(handlerInput) {
@@ -276,7 +426,12 @@ exports.handler = skillBuilder
                     .addRequestHandlers(
                         TooMuchYesIntentHandler,
                         TooMuchNoIntentHandler,
+                        WakingForGoodHandler,
+                        NotWakingForGoodHandler,
+                        WakingUnhandled,
                         WellRestedIntentHandler,
+                        GoingToBedIntentHandler,
+                        WakingUpIntentHandler,
                         StopOrCancelIntentHandler,
                         LaunchRequestHandler,
                         Unhandled
